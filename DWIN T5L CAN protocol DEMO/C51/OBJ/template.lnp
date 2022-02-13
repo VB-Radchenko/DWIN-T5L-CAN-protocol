@@ -1,0 +1,7 @@
+"..\OBJ\STARTUP_M5.obj",
+"..\OBJ\main.obj",
+"..\OBJ\sys.obj" 
+TO "..\OBJ\template" 
+
+PRINT("..\OBJ\template.map") REMOVEUNUSED 
+CLASSES (XDATA (X:0x8000-X:0xFFFF), HDATA (X:0x8000-X:0xFFFF)) 

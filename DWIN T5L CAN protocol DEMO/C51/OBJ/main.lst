@@ -1,0 +1,183 @@
+C51 COMPILER V9.59.0.0   MAIN                                                              02/10/2022 11:32:59 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN ..\OBJ\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c LARGE OMF2 OPTIMIZE(3,SIZE) BROWSE INCDIR(..\USER;..\FUNC_HANDLER
+                    -;..\GUI_APP) DEBUG PRINT(..\OBJ\main.lst) TABS(2) OBJECT(..\OBJ\main.obj)
+
+line level    source
+
+   1          #include "sys.h"
+   2          #define VP 0X3004
+   3          
+   4          unsigned char xdata can_buf[12];
+   5          unsigned char xdata ID = 0;
+   6          unsigned char xdata rx_done = 0;
+   7          u8 i;
+   8          
+   9          void CAN_tx();
+  10          void CAN_rx();
+  11          void main(void)
+  12          {   
+  13   1        sys_init();//系统初始化
+  14   1        caninit();//CAN初始化
+  15   1        while(1)
+  16   1        { 
+  17   2          EA=1;
+  18   2          sys_read_vp(0x3000,can_buf,5);
+  19   2          if(can_buf[9]==5)
+  20   2          { 
+  21   3            CAN_tx();
+  22   3            can_buf[8] = 0;
+  23   3            can_buf[9] = 0;
+  24   3            can_buf[10] = 0;
+  25   3            can_buf[11] = 0;
+  26   3            sys_write_vp(0x3004,(u8*)(&can_buf[8]),1);
+  27   3            sys_delay_about_ms(20);     
+  28   3          }
+  29   2          CAN_rx(); 
+  30   2        }
+  31   1      
+  32   1      }
+  33          
+  34          //CAN发送
+  35          void CAN_tx()
+  36          {
+  37   1      
+  38   1        EA = 0;
+  39   1        ADR_H = 0xFF;
+  40   1        ADR_M = 0x00;
+  41   1        ADR_L = 0x64;
+  42   1        ADR_INC = 1;
+  43   1        RAMMODE = 0x8F;   //写操作
+  44   1        while(!APP_ACK);
+  45   1        DATA3 = 8;      //帧类长度型以及数据
+  46   1        DATA2 = 0;
+  47   1        DATA1 = 0;
+  48   1        DATA0 = 0;      
+  49   1        APP_EN = 1;
+  50   1        while(APP_EN);    //写入RTR,IDE,DLC等数据
+  51   1        DATA3 = ID;
+  52   1        DATA2 = 0;
+  53   1        DATA1 = 0;
+  54   1        DATA0 = 0;      
+C51 COMPILER V9.59.0.0   MAIN                                                              02/10/2022 11:32:59 PAGE 2   
+
+  55   1        APP_EN = 1;
+  56   1        while(APP_EN);    //写入ID数据
+  57   1        DATA3 = can_buf[0];
+  58   1        DATA2 = can_buf[1];
+  59   1        DATA1 = can_buf[2];
+  60   1        DATA0 = can_buf[3];     
+  61   1        APP_EN = 1;
+  62   1        while(APP_EN);    //写入发送数据前4字节
+  63   1        DATA3 = can_buf[4];
+  64   1        DATA2 = can_buf[5];
+  65   1        DATA1 = can_buf[6];
+  66   1        DATA0 = can_buf[7];     
+  67   1        APP_EN = 1;
+  68   1        while(APP_EN);    //写入发送数据后4字节
+  69   1        EA = 1;
+  70   1        RAMMODE = 0;
+  71   1        CAN_CR |= 0x04;   //启动发送      
+  72   1      }
+  73          
+  74          
+  75          //CAN_rx接收
+  76          void CAN_rx()
+  77          {
+  78   1          if(rx_done == 1)
+  79   1          {
+  80   2            rx_done = 0;
+  81   2            sys_write_vp(0x3000,can_buf,4);   
+  82   2          } 
+  83   1      }
+  84          
+  85          
+  86          
+  87          void can_Isr() interrupt 9
+  88          {
+  89   1        EA = 0;
+  90   1        if((CAN_IR&0xC0) == 0xC0)
+  91   1        {
+  92   2          CAN_IR &= 0x3F; //清空远程帧标记位
+  93   2        }
+  94   1        else if((CAN_IR&0xC0) == 0x40)
+  95   1        {
+  96   2          CAN_IR &= 0xBF; //清空数据帧标记位
+  97   2          ADR_H = 0xFF;
+  98   2          ADR_M = 0x00;
+  99   2          ADR_L = 0x6A;
+ 100   2          ADR_INC = 1;
+ 101   2          RAMMODE = 0xAF;   //读操作
+ 102   2          while(!APP_ACK);
+ 103   2          APP_EN = 1;
+ 104   2          while(APP_EN);
+ 105   2          can_buf[0] = DATA3;
+ 106   2          can_buf[1] = DATA2;
+ 107   2          can_buf[2] = DATA1;
+ 108   2          can_buf[3] = DATA0;
+ 109   2          APP_EN = 1;
+ 110   2          while(APP_EN);
+ 111   2          can_buf[4] = DATA3;
+ 112   2          can_buf[5] = DATA2;
+ 113   2          can_buf[6] = DATA1;
+ 114   2          can_buf[7] = DATA0;
+ 115   2          APP_EN = 1;
+ 116   2          while(APP_EN);
+C51 COMPILER V9.59.0.0   MAIN                                                              02/10/2022 11:32:59 PAGE 3   
+
+ 117   2          RAMMODE = 0;
+ 118   2          rx_done = 1;  
+ 119   2        }
+ 120   1        if((CAN_IR&0x20) == 0x20)
+ 121   1        {
+ 122   2          CAN_IR &= 0xDF; //清空发送帧标记位
+ 123   2        }
+ 124   1        if((CAN_IR&0x10) == 0x10)
+ 125   1        {
+ 126   2          CAN_IR &= 0xEF; //清空接收溢出标记位
+ 127   2        }
+ 128   1        if((CAN_IR&0x08) == 0x08)
+ 129   1        {
+ 130   2          CAN_IR &= 0xF7; //清空错误标记位
+ 131   2          CAN_ET &= 0xE0; //清空错误标记  
+ 132   2        }
+ 133   1        if((CAN_IR&0x04) == 0x04)
+ 134   1        {
+ 135   2          CAN_IR &= 0xFB; //清空仲裁失败标记位
+ 136   2          CAN_CR |= 0x04; //重新启动发送  
+ 137   2        }
+ 138   1        EA = 1;  
+ 139   1      }
+ 140          
+ 141          
+ 142          
+ 143          
+ 144          
+ 145          
+ 146          
+ 147          
+ 148          
+ 149          
+ 150          
+ 151          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    395    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     15    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
